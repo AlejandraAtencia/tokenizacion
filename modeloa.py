@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Aplicación Streamlit – Modelo A
-Predicción de viabilidad de obra para tokenización inmobiliaria
+Predicción de viabilidad de obra (Red Neuronal)
 Antioquia, Colombia
 """
  
@@ -12,7 +12,7 @@ import pandas as pd
 # =====================================================
 # Carga del modelo y artefactos
 # =====================================================
-# pickle = (modelo, labelencoder, variables, scaler)
+# pickle = (modelo_nn, labelencoder, variables, scaler)
 with open("modelo-class.pkl", "rb") as f:
     modelNN, _, variables, scaler = pickle.load(f)
  
@@ -29,8 +29,8 @@ st.title("🏗️ Viabilidad de Tokenización Inmobiliaria")
 st.markdown("**Antioquia, Colombia** — Modelo CEED–DANE 2020–2025")
 st.markdown("---")
 st.markdown(
-    "Ingrese las características del proyecto para estimar su "
-    "viabilidad bajo esquemas de tokenización inmobiliaria."
+    "Ingrese las características del proyecto para estimar su viabilidad "
+    "bajo esquemas de tokenización inmobiliaria."
 )
  
 # =====================================================
@@ -42,8 +42,9 @@ with col1:
     st.subheader("💰 Precio y valor")
  
     PRECIOVTAX = st.number_input(
-        "Precio por m² (en miles de COP)",
+        "Precio por m² (miles de COP)",
         min_value=100,
+        max_value=9400,
         value=2500,
         step=100
     )
@@ -66,12 +67,13 @@ with col1:
         "Rango de precio de vivienda",
         options=[0, 1, 2, 3, 4, 5, 6],
         format_func=lambda x: {
-            1: "VIP (hasta 70 SMMLV)",
-            2: "VIS (70-135 SMMLV)",
-            3: "No VIS bajo (135-235 SMMLV)",
-            4: "No VIS medio (235-435 SMMLV)",
-            5: "No VIS alto (435-1000 SMMLV)",
-            6: "Premium (más de 1000 SMMLV)"
+            0: "Sin clasificar",
+            1: "VIP",
+            2: "VIS",
+            3: "No VIS bajo",
+            4: "No VIS medio",
+            5: "No VIS alto",
+            6: "Premium"
         }[x],
         index=2
     )
@@ -114,9 +116,7 @@ with col2:
         index=1
     )
  
-    # ✅ USO_DOS (alineado con el entrenamiento)
-    # En el entrenamiento se eliminó USO_DOS_2,
-    # por eso SOLO se permiten 1 y 3
+    # ✅ USO_DOS (alineado con entrenamiento: solo 1 y 3)
     USO_DOS = st.selectbox(
         "Uso del proyecto",
         options=[1, 3],
@@ -129,69 +129,87 @@ with col2:
 st.markdown("---")
  
 # =====================================================
+# Parámetro clave: UMBRAL de decisión
+# =====================================================
+UMBRAL = st.slider(
+    "Umbral de viabilidad",
+    min_value=0.50,
+    max_value=0.90,
+    value=0.65,
+    step=0.05,
+    help="Probabilidad mínima requerida para considerar el proyecto como viable"
+)
+ 
+st.markdown("---")
+ 
+# =====================================================
 # Predicción
 # =====================================================
 if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
  
-    # Inicializar TODAS las variables del modelo
+    # Inicializar vector completo
     fila = {col: 0 for col in variables}
  
     # Variables numéricas
     fila["PRECIOVTAX"] = PRECIOVTAX
     fila["GRADOAVANC"] = GRADOAVANC
  
-    # =================================================
-    # DUMMIES (alineadas exactamente al notebook)
-    # =================================================
+    # -------------------------
+    # DUMMIES (exactas al training)
+    # -------------------------
  
-    # --- ESTRATO ---
+    # ESTRATO
     for i in range(1, 7):
         col = f"ESTRATO_{i}"
         if col in fila:
             fila[col] = 1 if ESTRATO == i else 0
  
-    # --- CAPITULO ---
+    # CAPITULO
     for i in range(1, 7):
         col = f"CAPITULO_{i}"
         if col in fila:
             fila[col] = 1 if CAPITULO == i else 0
  
-    # --- RANVIVI ---
+    # RANVIVI
     for i in range(0, 7):
         col = f"RANVIVI_{i}"
         if col in fila:
             fila[col] = 1 if RANVIVI == i else 0
  
-    # --- TIPOVRDEST ---
+    # TIPOVRDEST
     if "TIPOVRDEST_2" in fila:
         fila["TIPOVRDEST_2"] = 1 if TIPOVRDEST == 2 else 0
  
-    # --- OB_FORMAL ---
+    # OB_FORMAL
     if "OB_FORMAL_1" in fila:
         fila["OB_FORMAL_1"] = 1 if OB_FORMAL == 1 else 0
  
-    # --- AMPLIACION ---
+    # AMPLIACION
     if "AMPLIACION_1" in fila:
         fila["AMPLIACION_1"] = 1 if AMPLIACION == 1 else 0
  
-    # ✅ --- USO_DOS (clave del error) ---
+    # USO_DOS
     if "USO_DOS_1" in fila:
         fila["USO_DOS_1"] = 1 if USO_DOS == 1 else 0
- 
     if "USO_DOS_3" in fila:
         fila["USO_DOS_3"] = 1 if USO_DOS == 3 else 0
  
     # =================================================
-    # DataFrame y escalado
-    # =====================================================
+    # DataFrame + escalado (NN)
+    # =================================================
     entrada = pd.DataFrame([fila])
  
-    # Aplica scaler solo si existe
-    X_modelo = entrada
+    # Orden EXACTO que espera el scaler
+    entrada = entrada[scaler.feature_names_in_]
  
-    # Predicción
-    pred = modelNN.predict(X_modelo)[0]
+    # Escalado
+    X_modelo = scaler.transform(entrada)
+ 
+    # Probabilidades
     prob = modelNN.predict_proba(X_modelo)[0]
+ 
+    # Decisión basada en umbral
+    pred = 1 if prob[1] >= UMBRAL else 0
  
     # =================================================
     # Resultados
@@ -200,10 +218,16 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
  
     if pred == 1:
         st.success("✅ **PROYECTO VIABLE PARA TOKENIZACIÓN**")
-        st.metric("Probabilidad de viabilidad", f"{prob[1] * 100:.1f}%")
+        st.metric(
+            "Probabilidad de viabilidad",
+            f"{prob[1] * 100:.1f}%"
+        )
     else:
         st.error("❌ **PROYECTO NO VIABLE PARA TOKENIZACIÓN**")
-        st.metric("Probabilidad de no viabilidad", f"{prob[0] * 100:.1f}%")
+        st.metric(
+            "Probabilidad de no viabilidad",
+            f"{prob[0] * 100:.1f}%"
+        )
  
     st.markdown("### Detalle de probabilidades")
     col_a, col_b = st.columns(2)
@@ -214,8 +238,8 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
         st.dataframe(entrada, use_container_width=True)
  
     st.info(
-        "Resultado estimado con base en datos históricos. "
-        "No constituye recomendación financiera ni legal."
+        "La clasificación final depende del umbral de decisión seleccionado. "
+        "Probabilidades cercanas al umbral representan escenarios de mayor riesgo."
     )
  
 st.markdown("---")
@@ -223,4 +247,3 @@ st.caption(
     "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos | "
     "Tokenización Inmobiliaria – Antioquia"
 )
-
