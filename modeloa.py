@@ -225,4 +225,4 @@ st.caption(
     "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos | "
     "Tokenización Inmobiliaria – Antioquia"
 )
-``
+
