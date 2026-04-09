@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
 """
 Aplicación Streamlit – Modelo A
-Evaluación de viabilidad para tokenización inmobiliaria
+Predicción de viabilidad de obra para tokenización inmobiliaria
 Antioquia, Colombia
- 
-Modelo entrenado con datos CEED–DANE (2020–2025)
-Maestría en Ciencia de Datos
 """
  
 import streamlit as st
 import pickle
-import numpy as np
 import pandas as pd
  
 # =====================================================
 # Carga del modelo y artefactos
 # =====================================================
 # El pickle contiene:
-#  - modelNN      : modelo de clasificación entrenado
-#  - variables    : lista ordenada de variables del modelo
-#  - scaler       : objeto de normalización (fit en entrenamiento)
-#
-# Nota: El LabelEncoder fue usado solo en entrenamiento,
-# no es necesario para la fase de inferencia.
+#  - modelNN   : modelo entrenado
+#  - _         : labelencoder (usado solo en entrenamiento)
+#  - variables : lista final de variables del modelo
+#  - scaler    : scaler correspondiente al modelo (si aplica)
 with open("modelo-class.pkl", "rb") as f:
     modelNN, _, variables, scaler = pickle.load(f)
  
@@ -36,13 +30,11 @@ st.set_page_config(
 )
  
 st.title("🏗️ Viabilidad de Tokenización Inmobiliaria")
-st.markdown(
-    "**Antioquia, Colombia** — Modelo de clasificación basado en datos CEED–DANE 2020–2025"
-)
+st.markdown("**Antioquia, Colombia** — Modelo CEED–DANE 2020–2025")
 st.markdown("---")
 st.markdown(
-    "Complete las características del proyecto para evaluar su viabilidad "
-    "potencial de inversión bajo esquemas de tokenización inmobiliaria."
+    "Ingrese las características del proyecto para estimar su "
+    "viabilidad bajo esquemas de tokenización inmobiliaria."
 )
  
 # =====================================================
@@ -58,15 +50,13 @@ with col1:
         min_value=100,
         max_value=9400,
         value=2500,
-        step=100,
-        help="Ejemplo: 2500 equivale a COP 2.500.000 por m²"
+        step=100
     )
  
     TIPOVRDEST = st.selectbox(
         "Tipo de valor del precio",
         options=[1, 2],
-        format_func=lambda x: "Real" if x == 1 else "Estimado",
-        help="Indica si el precio reportado es real o estimado"
+        format_func=lambda x: "Real" if x == 1 else "Estimado"
     )
  
     st.subheader("🏢 Perfil del proyecto")
@@ -74,20 +64,20 @@ with col1:
     ESTRATO = st.selectbox(
         "Estrato socioeconómico",
         options=[1, 2, 3, 4, 5, 6],
-        index=2,
-        help="Estrato predominante del proyecto (1=bajo, 6=alto)"
+        index=2
     )
  
     RANVIVI = st.selectbox(
         "Rango de precio de vivienda",
-        options=[1, 2, 3, 4, 5, 6],
+        options=[0, 1, 2, 3, 4, 5, 6],
         format_func=lambda x: {
-            1: "VIP (hasta 70 SMMLV)",
-            2: "VIS (70–135 SMMLV)",
-            3: "No VIS bajo (135–235 SMMLV)",
-            4: "No VIS medio (235–435 SMMLV)",
-            5: "No VIS alto (435–1000 SMMLV)",
-            6: "Premium (más de 1000 SMMLV)"
+            0: "Sin clasificar",
+            1: "VIP",
+            2: "VIS",
+            3: "No VIS bajo",
+            4: "No VIS medio",
+            5: "No VIS alto",
+            6: "Premium"
         }[x],
         index=2
     )
@@ -105,17 +95,14 @@ with col2:
             4: "Acabados",
             5: "Instalaciones",
             6: "Remates"
-        }[x],
-        index=2,
-        help="Variable tratada como ordinal según el entrenamiento"
+        }[x]
     )
  
     GRADOAVANC = st.slider(
         "Grado de avance (%)",
         min_value=1,
         max_value=100,
-        value=50,
-        help="Porcentaje aproximado de avance físico del proyecto"
+        value=50
     )
  
     st.subheader("📋 Formalidad")
@@ -123,12 +110,11 @@ with col2:
     OB_FORMAL = st.selectbox(
         "Formalidad de la obra",
         options=[1, 2],
-        format_func=lambda x: "Formal" if x == 1 else "Informal",
-        help="Cumplimiento normativo y licenciamiento del proyecto"
+        format_func=lambda x: "Formal" if x == 1 else "Informal"
     )
  
     AMPLIACION = st.selectbox(
-        "¿El proyecto corresponde a una ampliación?",
+        "¿Es una ampliación?",
         options=[1, 2],
         format_func=lambda x: "Sí" if x == 1 else "No",
         index=1
@@ -141,33 +127,58 @@ st.markdown("---")
 # =====================================================
 if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
  
-    # Inicializar vector de entrada con todas las variables del modelo
+    # Inicializar vector con TODAS las variables del modelo
     fila = {col: 0 for col in variables}
  
-    # Asignación directa de variables numéricas / ordinales
+    # Variables numéricas
     fila["PRECIOVTAX"] = PRECIOVTAX
     fila["GRADOAVANC"] = GRADOAVANC
-    fila["ESTRATO"] = ESTRATO
-    fila["RANVIVI"] = RANVIVI
-    fila["CAPITULO"] = CAPITULO
  
-    # Codificación one-hot de variables categóricas
-    if f"TIPOVRDEST_{TIPOVRDEST}" in fila:
-        fila[f"TIPOVRDEST_{TIPOVRDEST}"] = 1
+    # =================================================
+    # DUMMIES (alineadas con el notebook)
+    # =================================================
  
-    if f"OB_FORMAL_{OB_FORMAL}" in fila:
-        fila[f"OB_FORMAL_{OB_FORMAL}"] = 1
+    # --- ESTRATO ---
+    for i in range(1, 7):
+        col = f"ESTRATO_{i}"
+        if col in fila:
+            fila[col] = 1 if ESTRATO == i else 0
  
-    if f"AMPLIACION_{AMPLIACION}" in fila:
-        fila[f"AMPLIACION_{AMPLIACION}"] = 1
+    # --- CAPITULO ---
+    for i in range(1, 7):
+        col = f"CAPITULO_{i}"
+        if col in fila:
+            fila[col] = 1 if CAPITULO == i else 0
  
-    # Construir DataFrame y aplicar normalización
+    # --- RANVIVI ---
+    for i in range(0, 7):
+        col = f"RANVIVI_{i}"
+        if col in fila:
+            fila[col] = 1 if RANVIVI == i else 0
+ 
+    # --- TIPOVRDEST ---
+    if "TIPOVRDEST_2" in fila:
+        fila["TIPOVRDEST_2"] = 1 if TIPOVRDEST == 2 else 0
+ 
+    # --- OB_FORMAL ---
+    if "OB_FORMAL_1" in fila:
+        fila["OB_FORMAL_1"] = 1 if OB_FORMAL == 1 else 0
+ 
+    # --- AMPLIACION ---
+    if "AMPLIACION_1" in fila:
+        fila["AMPLIACION_1"] = 1 if AMPLIACION == 1 else 0
+ 
+    # =================================================
+    # Construcción del dataframe y escalado
+    # =================================================
     entrada = pd.DataFrame([fila])
-    entrada_scaled = scaler.transform(entrada)
+ 
+    # El escalado solo se aplica si el modelo lo requiere
+    entrada_modelo = scaler.transform(entrada) if scaler else entrada
  
     # Predicción
-    pred = modelNN.predict(entrada_scaled)[0]
-    prob = modelNN.predict_proba(entrada_scaled)[0]
+    pred = modelNN.predict(entrada_modelo)[0]
+    prob = modelNN.predict_proba(entrada_modelo)[0]
  
     # =================================================
     # Resultados
@@ -177,24 +188,14 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     if pred == 1:
         st.success("✅ **PROYECTO VIABLE PARA TOKENIZACIÓN**")
         st.metric(
-            label="Probabilidad estimada de viabilidad",
-            value=f"{prob[1] * 100:.1f}%"
-        )
-        st.markdown(
-            "El modelo clasifica este proyecto como viable para esquemas de "
-            "tokenización inmobiliaria, con base en patrones históricos de "
-            "proyectos formalizados y completados exitosamente en Antioquia."
+            "Probabilidad de viabilidad",
+            f"{prob[1] * 100:.1f}%"
         )
     else:
         st.error("❌ **PROYECTO NO VIABLE PARA TOKENIZACIÓN**")
         st.metric(
-            label="Probabilidad estimada de no viabilidad",
-            value=f"{prob[0] * 100:.1f}%"
-        )
-        st.markdown(
-            "El modelo clasifica este proyecto como no viable para esquemas de "
-            "tokenización inmobiliaria, al presentar características "
-            "frecuentes en proyectos con alto riesgo de paralización."
+            "Probabilidad de no viabilidad",
+            f"{prob[0] * 100:.1f}%"
         )
  
     st.markdown("### Detalle de probabilidades")
@@ -202,17 +203,16 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     col_a.metric("No viable (0)", f"{prob[0] * 100:.1f}%")
     col_b.metric("Viable (1)", f"{prob[1] * 100:.1f}%")
  
-    # Explicabilidad básica
     with st.expander("📊 Variables ingresadas al modelo"):
         st.dataframe(entrada, use_container_width=True)
  
     st.info(
-        "⚠️ Este resultado es una estimación probabilística basada en datos "
-        "históricos. No constituye recomendación financiera, legal ni de inversión."
+        "Este resultado es una estimación probabilística basada en datos históricos. "
+        "No constituye recomendación financiera ni legal."
     )
  
 st.markdown("---")
 st.caption(
-    "Modelo desarrollado con datos CEED–DANE 2020–2025 | "
-    "Maestría en Ciencia de Datos | Tokenización Inmobiliaria – Antioquia"
+    "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos | "
+    "Tokenización Inmobiliaria – Antioquia"
 )
