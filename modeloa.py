@@ -12,11 +12,7 @@ import pandas as pd
 # =====================================================
 # Carga del modelo y artefactos
 # =====================================================
-# El pickle contiene:
-#  - modelNN   : modelo entrenado
-#  - _         : labelencoder (usado solo en entrenamiento)
-#  - variables : lista final de variables del modelo
-#  - scaler    : scaler correspondiente al modelo (si aplica)
+# pickle = (modelo, labelencoder, variables, scaler)
 with open("modelo-class.pkl", "rb") as f:
     modelNN, _, variables, scaler = pickle.load(f)
  
@@ -105,7 +101,7 @@ with col2:
         value=50
     )
  
-    st.subheader("📋 Formalidad")
+    st.subheader("📋 Legalidad y tipo")
  
     OB_FORMAL = st.selectbox(
         "Formalidad de la obra",
@@ -120,6 +116,18 @@ with col2:
         index=1
     )
  
+    # ✅ USO_DOS (alineado con el entrenamiento)
+    # En el entrenamiento se eliminó USO_DOS_2,
+    # por eso SOLO se permiten 1 y 3
+    USO_DOS = st.selectbox(
+        "Uso del proyecto",
+        options=[1, 3],
+        format_func=lambda x: {
+            1: "Residencial",
+            3: "Mixto / Otro"
+        }[x]
+    )
+ 
 st.markdown("---")
  
 # =====================================================
@@ -127,7 +135,7 @@ st.markdown("---")
 # =====================================================
 if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
  
-    # Inicializar vector con TODAS las variables del modelo
+    # Inicializar TODAS las variables del modelo
     fila = {col: 0 for col in variables}
  
     # Variables numéricas
@@ -135,7 +143,7 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     fila["GRADOAVANC"] = GRADOAVANC
  
     # =================================================
-    # DUMMIES (alineadas con el notebook)
+    # DUMMIES (alineadas exactamente al notebook)
     # =================================================
  
     # --- ESTRATO ---
@@ -168,17 +176,24 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     if "AMPLIACION_1" in fila:
         fila["AMPLIACION_1"] = 1 if AMPLIACION == 1 else 0
  
+    # ✅ --- USO_DOS (clave del error) ---
+    if "USO_DOS_1" in fila:
+        fila["USO_DOS_1"] = 1 if USO_DOS == 1 else 0
+ 
+    if "USO_DOS_3" in fila:
+        fila["USO_DOS_3"] = 1 if USO_DOS == 3 else 0
+ 
     # =================================================
-    # Construcción del dataframe y escalado
-    # =================================================
+    # DataFrame y escalado
+    # =====================================================
     entrada = pd.DataFrame([fila])
  
-    # El escalado solo se aplica si el modelo lo requiere
-    entrada_modelo = scaler.transform(entrada) if scaler else entrada
+    # Aplica scaler solo si existe
+    X_modelo = scaler.transform(entrada) if scaler else entrada
  
     # Predicción
-    pred = modelNN.predict(entrada_modelo)[0]
-    prob = modelNN.predict_proba(entrada_modelo)[0]
+    pred = modelNN.predict(X_modelo)[0]
+    prob = modelNN.predict_proba(X_modelo)[0]
  
     # =================================================
     # Resultados
@@ -187,27 +202,21 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
  
     if pred == 1:
         st.success("✅ **PROYECTO VIABLE PARA TOKENIZACIÓN**")
-        st.metric(
-            "Probabilidad de viabilidad",
-            f"{prob[1] * 100:.1f}%"
-        )
+        st.metric("Probabilidad de viabilidad", f"{prob[1] * 100:.1f}%")
     else:
         st.error("❌ **PROYECTO NO VIABLE PARA TOKENIZACIÓN**")
-        st.metric(
-            "Probabilidad de no viabilidad",
-            f"{prob[0] * 100:.1f}%"
-        )
+        st.metric("Probabilidad de no viabilidad", f"{prob[0] * 100:.1f}%")
  
     st.markdown("### Detalle de probabilidades")
     col_a, col_b = st.columns(2)
     col_a.metric("No viable (0)", f"{prob[0] * 100:.1f}%")
     col_b.metric("Viable (1)", f"{prob[1] * 100:.1f}%")
  
-    with st.expander("📊 Variables ingresadas al modelo"):
+    with st.expander("📊 Variables enviadas al modelo"):
         st.dataframe(entrada, use_container_width=True)
  
     st.info(
-        "Este resultado es una estimación probabilística basada en datos históricos. "
+        "Resultado estimado con base en datos históricos. "
         "No constituye recomendación financiera ni legal."
     )
  
@@ -216,3 +225,4 @@ st.caption(
     "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos | "
     "Tokenización Inmobiliaria – Antioquia"
 )
+``
