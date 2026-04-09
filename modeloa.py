@@ -44,7 +44,6 @@ with col1:
     PRECIOVTAX = st.number_input(
         "Precio por m² (en miles de COP)",
         min_value=100,
-        max_value=9400,
         value=2500,
         step=100
     )
@@ -67,13 +66,12 @@ with col1:
         "Rango de precio de vivienda",
         options=[0, 1, 2, 3, 4, 5, 6],
         format_func=lambda x: {
-            0: "Sin clasificar",
-            1: "VIP",
-            2: "VIS",
-            3: "No VIS bajo",
-            4: "No VIS medio",
-            5: "No VIS alto",
-            6: "Premium"
+            1: "VIP (hasta 70 SMMLV)",
+            2: "VIS (70-135 SMMLV)",
+            3: "No VIS bajo (135-235 SMMLV)",
+            4: "No VIS medio (235-435 SMMLV)",
+            5: "No VIS alto (435-1000 SMMLV)",
+            6: "Premium (más de 1000 SMMLV)"
         }[x],
         index=2
     )
