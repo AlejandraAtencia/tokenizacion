@@ -158,7 +158,7 @@ if st.button("🔍 Evaluar viabilidad", use_container_width=True):
     entrada = entrada.reindex(columns=variables, fill_value=0)
  
     # ✅ Escalado correcto (Red Neuronal)
-    X_modelo = scaler.transform(entrada)
+    X_modelo = entrada
  
     # -----------------------------
     # Probabilidades
