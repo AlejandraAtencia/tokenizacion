@@ -189,7 +189,7 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     entrada = pd.DataFrame([fila])
  
     # Aplica scaler solo si existe
-    X_modelo = scaler.transform(entrada) if scaler else entrada
+    X_modelo = entrada
  
     # Predicción
     pred = modelNN.predict(X_modelo)[0]
