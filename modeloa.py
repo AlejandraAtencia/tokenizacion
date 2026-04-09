@@ -203,7 +203,7 @@ if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
     entrada = entrada[scaler.feature_names_in_]
  
     # Escalado
-    X_modelo = scaler.transform(entrada)
+    X_modelo = entrada
  
     # Probabilidades
     prob = modelNN.predict_proba(X_modelo)[0]
