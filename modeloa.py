@@ -28,10 +28,6 @@ st.set_page_config(
 st.title("🏗️ Viabilidad de Tokenización Inmobiliaria")
 st.markdown("**Antioquia, Colombia** — Modelo CEED–DANE 2020–2025")
 st.markdown("---")
-st.markdown(
-    "Ingrese las características del proyecto para estimar su viabilidad "
-    "bajo esquemas de tokenización inmobiliaria."
-)
  
 # =====================================================
 # Formulario de entrada
@@ -39,14 +35,24 @@ st.markdown(
 col1, col2 = st.columns(2)
  
 with col1:
-    st.subheader("💰 Precio y valor")
+    st.subheader("💰 Precio y perfil")
  
     PRECIOVTAX = st.number_input(
-        "Precio por m² (miles de COP)",
+        "Precio por m² (miles COP)",
         min_value=100,
         max_value=9400,
         value=2500,
         step=100
+    )
+ 
+    ESTRATO = st.selectbox(
+        "Estrato socioeconómico",
+        options=[1, 2, 3, 4, 5, 6]
+    )
+ 
+    RANVIVI = st.selectbox(
+        "Rango de precio vivienda",
+        options=[0, 1, 2, 3, 4, 5, 6]
     )
  
     TIPOVRDEST = st.selectbox(
@@ -55,43 +61,12 @@ with col1:
         format_func=lambda x: "Real" if x == 1 else "Estimado"
     )
  
-    st.subheader("🏢 Perfil del proyecto")
- 
-    ESTRATO = st.selectbox(
-        "Estrato socioeconómico",
-        options=[1, 2, 3, 4, 5, 6],
-        index=2
-    )
- 
-    RANVIVI = st.selectbox(
-        "Rango de precio de vivienda",
-        options=[0, 1, 2, 3, 4, 5, 6],
-        format_func=lambda x: {
-            0: "Sin clasificar",
-            1: "VIP",
-            2: "VIS",
-            3: "No VIS bajo",
-            4: "No VIS medio",
-            5: "No VIS alto",
-            6: "Premium"
-        }[x],
-        index=2
-    )
- 
 with col2:
-    st.subheader("🔨 Avance de obra")
+    st.subheader("🔨 Estado de la obra")
  
     CAPITULO = st.selectbox(
-        "Capítulo actual de obra",
-        options=[1, 2, 3, 4, 5, 6],
-        format_func=lambda x: {
-            1: "Cimentación",
-            2: "Estructura",
-            3: "Mampostería",
-            4: "Acabados",
-            5: "Instalaciones",
-            6: "Remates"
-        }[x]
+        "Capítulo de obra",
+        options=[1, 2, 3, 4, 5, 6]
     )
  
     GRADOAVANC = st.slider(
@@ -100,8 +75,6 @@ with col2:
         max_value=100,
         value=50
     )
- 
-    st.subheader("📋 Legalidad y tipo")
  
     OB_FORMAL = st.selectbox(
         "Formalidad de la obra",
@@ -112,11 +85,10 @@ with col2:
     AMPLIACION = st.selectbox(
         "¿Es una ampliación?",
         options=[1, 2],
-        format_func=lambda x: "Sí" if x == 1 else "No",
-        index=1
+        format_func=lambda x: "Sí" if x == 1 else "No"
     )
  
-    # ✅ USO_DOS (alineado con entrenamiento: solo 1 y 3)
+    # ✅ USO_DOS (según entrenamiento)
     USO_DOS = st.selectbox(
         "Uso del proyecto",
         options=[1, 3],
@@ -129,15 +101,14 @@ with col2:
 st.markdown("---")
  
 # =====================================================
-# Parámetro clave: UMBRAL de decisión
+# UMBRAL DE DECISIÓN
 # =====================================================
 UMBRAL = st.slider(
     "Umbral de viabilidad",
     min_value=0.50,
     max_value=0.90,
     value=0.65,
-    step=0.05,
-    help="Probabilidad mínima requerida para considerar el proyecto como viable"
+    step=0.05
 )
  
 st.markdown("---")
@@ -145,105 +116,79 @@ st.markdown("---")
 # =====================================================
 # Predicción
 # =====================================================
-if st.button("🔍 Evaluar viabilidad del proyecto", use_container_width=True):
+if st.button("🔍 Evaluar viabilidad", use_container_width=True):
  
+    # -----------------------------
     # Inicializar vector completo
+    # -----------------------------
     fila = {col: 0 for col in variables}
  
     # Variables numéricas
     fila["PRECIOVTAX"] = PRECIOVTAX
     fila["GRADOAVANC"] = GRADOAVANC
  
-    # -------------------------
-    # DUMMIES (exactas al training)
-    # -------------------------
+    # -----------------------------
+    # DUMMIES (alineadas al training)
+    # -----------------------------
+    fila[f"ESTRATO_{ESTRATO}"] = 1
+    fila[f"CAPITULO_{CAPITULO}"] = 1
+    fila[f"RANVIVI_{RANVIVI}"] = 1
  
-    # ESTRATO
-    for i in range(1, 7):
-        col = f"ESTRATO_{i}"
-        if col in fila:
-            fila[col] = 1 if ESTRATO == i else 0
+    if TIPOVRDEST == 2 and "TIPOVRDEST_2" in fila:
+        fila["TIPOVRDEST_2"] = 1
  
-    # CAPITULO
-    for i in range(1, 7):
-        col = f"CAPITULO_{i}"
-        if col in fila:
-            fila[col] = 1 if CAPITULO == i else 0
+    if OB_FORMAL == 1 and "OB_FORMAL_1" in fila:
+        fila["OB_FORMAL_1"] = 1
  
-    # RANVIVI
-    for i in range(0, 7):
-        col = f"RANVIVI_{i}"
-        if col in fila:
-            fila[col] = 1 if RANVIVI == i else 0
+    if AMPLIACION == 1 and "AMPLIACION_1" in fila:
+        fila["AMPLIACION_1"] = 1
  
-    # TIPOVRDEST
-    if "TIPOVRDEST_2" in fila:
-        fila["TIPOVRDEST_2"] = 1 if TIPOVRDEST == 2 else 0
+    if USO_DOS == 1 and "USO_DOS_1" in fila:
+        fila["USO_DOS_1"] = 1
  
-    # OB_FORMAL
-    if "OB_FORMAL_1" in fila:
-        fila["OB_FORMAL_1"] = 1 if OB_FORMAL == 1 else 0
+    if USO_DOS == 3 and "USO_DOS_3" in fila:
+        fila["USO_DOS_3"] = 1
  
-    # AMPLIACION
-    if "AMPLIACION_1" in fila:
-        fila["AMPLIACION_1"] = 1 if AMPLIACION == 1 else 0
- 
-    # USO_DOS
-    if "USO_DOS_1" in fila:
-        fila["USO_DOS_1"] = 1 if USO_DOS == 1 else 0
-    if "USO_DOS_3" in fila:
-        fila["USO_DOS_3"] = 1 if USO_DOS == 3 else 0
- 
-    # =================================================
-    # DataFrame + escalado (NN)
-    # =================================================
+    # -----------------------------
+    # DataFrame final alineado
+    # -----------------------------
     entrada = pd.DataFrame([fila])
  
-    # Orden EXACTO que espera el scaler
-    entrada = entrada[scaler.feature_names_in_]
+    # ✅ Alineación FINAL con el modelo
+    entrada = entrada.reindex(columns=variables, fill_value=0)
  
-    # Escalado
-    X_modelo = entrada
+    # ✅ Escalado correcto (Red Neuronal)
+    X_modelo = scaler.transform(entrada)
  
+    # -----------------------------
     # Probabilidades
+    # -----------------------------
     prob = modelNN.predict_proba(X_modelo)[0]
  
-    # Decisión basada en umbral
+    # Decisión con umbral
     pred = 1 if prob[1] >= UMBRAL else 0
  
     # =================================================
     # Resultados
     # =================================================
-    st.markdown("## Resultado del modelo")
+    st.markdown("## Resultado")
  
     if pred == 1:
-        st.success("✅ **PROYECTO VIABLE PARA TOKENIZACIÓN**")
-        st.metric(
-            "Probabilidad de viabilidad",
-            f"{prob[1] * 100:.1f}%"
-        )
+        st.success("✅ PROYECTO VIABLE")
+        st.metric("Probabilidad de viabilidad", f"{prob[1]*100:.1f}%")
     else:
-        st.error("❌ **PROYECTO NO VIABLE PARA TOKENIZACIÓN**")
-        st.metric(
-            "Probabilidad de no viabilidad",
-            f"{prob[0] * 100:.1f}%"
-        )
- 
-    st.markdown("### Detalle de probabilidades")
-    col_a, col_b = st.columns(2)
-    col_a.metric("No viable (0)", f"{prob[0] * 100:.1f}%")
-    col_b.metric("Viable (1)", f"{prob[1] * 100:.1f}%")
+        st.error("❌ PROYECTO NO VIABLE")
+        st.metric("Probabilidad de no viabilidad", f"{prob[0]*100:.1f}%")
  
     with st.expander("📊 Variables enviadas al modelo"):
-        st.dataframe(entrada, use_container_width=True)
+        st.dataframe(entrada)
  
     st.info(
-        "La clasificación final depende del umbral de decisión seleccionado. "
-        "Probabilidades cercanas al umbral representan escenarios de mayor riesgo."
+        "La decisión final se basa en el umbral seleccionado y en la probabilidad "
+        "estimada por la red neuronal."
     )
  
 st.markdown("---")
 st.caption(
-    "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos | "
-    "Tokenización Inmobiliaria – Antioquia"
+    "Modelo CEED–DANE 2020–2025 | Maestría en Ciencia de Datos"
 )
