@@ -52,7 +52,16 @@ with col1:
  
     RANVIVI = st.selectbox(
         "Rango de precio vivienda",
-        options=[0, 1, 2, 3, 4, 5, 6]
+        options=[1, 2, 3, 4, 5, 6],
+     format_func=lambda x: {
+            1: "VIP (hasta 70 SMMLV)",
+            2: "VIS (70-135 SMMLV)",
+            3: "No VIS bajo (135-235 SMMLV)",
+            4: "No VIS medio (235-435 SMMLV)",
+            5: "No VIS alto (435-1000 SMMLV)",
+            6: "Premium (más de 1000 SMMLV)"
+        }[x],
+        index=2
     )
  
     TIPOVRDEST = st.selectbox(
